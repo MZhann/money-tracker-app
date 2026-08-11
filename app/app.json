@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Flow",
+    "slug": "flow-money-tracker",
+    "version": "0.1.0",
+    "scheme": "flow",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": { "supportsTablet": false, "bundleIdentifier": "kz.flow.app" },
+    "android": { "package": "kz.flow.app" },
+    "plugins": ["expo-router", "expo-sqlite", "expo-font"]
+  }
+}
