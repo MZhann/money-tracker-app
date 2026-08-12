@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CapsLabel, Card, CategoryIcon, Chip, CurrencyPicker, Icon, catTint } from '@/components/ui';
 import { exportMarkdown } from '@/export/markdown';
 import { CAT_COLORS, CatColor } from '@/lib/money';
 import { useFlow } from '@/store/useFlow';
-import { hasApi, requestSync } from '@/sync/sync';
+import { hasApi, syncNow } from '@/sync/sync';
 import { THEMES, ThemeId, font, radius, space } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
@@ -29,12 +29,35 @@ export default function Profile() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { settings, accounts, categories, transactions, debts, assets, setSettings, addCategory, deleteCategory, eraseAll, showToast, syncEmail, signIn, signOut } = useFlow();
+  const { settings, accounts, categories, transactions, debts, assets, setSettings, addCategory, deleteCategory, eraseAll, showToast, syncEmail, lastSyncAt, signIn, signOut } = useFlow();
   const initials = settings.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const onSyncNow = async () => {
+    setSyncing(true);
+    const res = await syncNow();
+    setSyncing(false);
+    showToast({
+      ok: 'Synced — everything is backed up ✓',
+      offline: "You're offline — will sync when back online",
+      error: 'Server not responding — it may be waking up, try again in a minute',
+      busy: 'Already syncing…',
+      signedout: 'Sign in first to sync',
+      expired: 'Session expired — please sign in again',
+      noapi: 'Sync server is not configured',
+    }[res]);
+  };
+
+  const fmtSyncTime = (ts: number) => {
+    const d = new Date(ts);
+    const today = new Date().toDateString() === d.toDateString();
+    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return today ? `today at ${hm}` : `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')} at ${hm}`;
+  };
   const doAuth = async (mode: 'register' | 'login') => {
     if (!email.trim() || !password) return showToast('Enter email and password');
     setBusy(true);
@@ -109,14 +132,14 @@ export default function Profile() {
               <Text style={{ fontFamily: font.body, fontSize: 13, color: t.textBody }}>Backed up as {syncEmail}</Text>
             </View>
             <Text style={{ fontFamily: font.body, fontSize: 11, color: t.textFaint }}>
-              Every change syncs automatically when you're online.
+              {lastSyncAt ? `Last synced ${fmtSyncTime(lastSyncAt)}. ` : ''}Every change syncs automatically when you're online.
             </Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable onPress={() => { requestSync(); showToast('Syncing…'); }} style={({ pressed }) => ({
+              <Pressable disabled={syncing} onPress={onSyncNow} style={({ pressed }) => ({
                 flex: 1, height: 42, borderRadius: radius.md, backgroundColor: pressed ? t.accentDeep : t.accent,
-                alignItems: 'center', justifyContent: 'center',
+                alignItems: 'center', justifyContent: 'center', opacity: syncing ? 0.65 : 1,
               })}>
-                <Text style={{ fontFamily: font.bodyMedium, fontSize: 13, color: t.onAccent }}>Sync now</Text>
+                <Text style={{ fontFamily: font.bodyMedium, fontSize: 13, color: t.onAccent }}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
               </Pressable>
               <Pressable onPress={() => { signOut(); showToast('Signed out — data stays on this phone'); }} style={{
                 height: 42, paddingHorizontal: 16, borderRadius: radius.md, borderWidth: 1, borderColor: t.borderSoft,
@@ -243,6 +266,24 @@ export default function Profile() {
           <Text style={{ fontFamily: font.bodyMedium, fontSize: 14, color: '#464034' }}>Download .md</Text>
         </Pressable>
       </View>
+
+      <Card style={{ padding: 16, gap: 6 }}>
+        <Text style={{ fontFamily: font.display, fontSize: 16, color: t.textBody }}>Ideas or found a bug?</Text>
+        <Text style={{ fontFamily: font.body, fontSize: 13, lineHeight: 18, color: t.textMuted }}>
+          Flow is built by one person — your feedback directly shapes what gets built next.
+        </Text>
+        <Pressable
+          onPress={() => Linking.openURL('https://t.me/ZhSherl').catch(() => showToast("Couldn't open Telegram"))}
+          style={({ pressed }) => ({
+            marginTop: 8, height: 44, borderRadius: radius.pill, backgroundColor: '#2AABEE',
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+            alignSelf: 'flex-start', paddingHorizontal: 18, transform: [{ scale: pressed ? 0.97 : 1 }],
+          })}>
+          <Icon name="plane" size={16} color="#FFFFFF" stroke={2} />
+          <Text style={{ fontFamily: font.bodyMedium, fontSize: 14, color: '#FFFFFF' }}>Write me on Telegram</Text>
+        </Pressable>
+        <Text style={{ fontFamily: font.mono, fontSize: 11, color: t.textFaint, marginTop: 2 }}>@ZhSherl</Text>
+      </Card>
 
       <Pressable onPress={() => Alert.alert('Erase all data?', 'Accounts, transactions, debts, and property will be removed. Categories reset to the defaults.', [
         { text: 'Cancel', style: 'cancel' },

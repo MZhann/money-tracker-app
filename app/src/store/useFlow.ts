@@ -14,6 +14,7 @@ interface FlowState {
   assets: Asset[];
   toast: string;
   syncEmail: string | null;
+  lastSyncAt: number | null;
   init: () => void;
   showToast: (m: string) => void;
   setSettings: (patch: Partial<Settings>) => void;
@@ -47,6 +48,7 @@ export const useFlow = create<FlowState>((set, get) => ({
   accounts: [], categories: [], transactions: [], debts: [], assets: [],
   toast: '',
   syncEmail: null,
+  lastSyncAt: null,
 
   init: () => {
     initDb();
@@ -66,10 +68,12 @@ export const useFlow = create<FlowState>((set, get) => ({
       debts: loadAll<Debt>('debts'),
       assets: loadAll<Asset>('assets'),
       syncEmail: getMeta('syncEmail') || null,
+      lastSyncAt: Number(getMeta('lastSyncAt')) || null,
     });
     startSync({
       onPulled: () => get().init(), // pulled rows land in SQLite; reload state from it
       onSignedOut: () => set({ syncEmail: null }),
+      onSynced: ts => set({ lastSyncAt: ts }),
     });
     requestSync();
   },

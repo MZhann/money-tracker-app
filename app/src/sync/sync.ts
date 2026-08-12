@@ -5,18 +5,22 @@ import { dirtyRows, markClean, upsert, getMeta, setMeta, markAllDirty } from '..
 const API = process.env.EXPO_PUBLIC_API_URL ?? '';
 const COLLECTIONS = ['accounts', 'categories', 'transactions', 'debts', 'assets', 'settings'] as const;
 
+export type SyncResult = 'ok' | 'offline' | 'signedout' | 'expired' | 'error' | 'busy' | 'noapi';
+
 let inFlight = false;
 let pending = false;
 let started = false;
 let onPulled: (() => void) | null = null;
 let onSignedOut: (() => void) | null = null;
+let onSynced: ((ts: number) => void) | null = null;
 
 export const hasApi = () => !!API;
 
 /** Call once at app start: registers connectivity + foreground listeners and the pull callback. */
-export function startSync(callbacks: { onPulled: () => void; onSignedOut: () => void }) {
+export function startSync(callbacks: { onPulled: () => void; onSignedOut: () => void; onSynced: (ts: number) => void }) {
   onPulled = callbacks.onPulled;
   onSignedOut = callbacks.onSignedOut;
+  onSynced = callbacks.onSynced;
   if (started || !API) return;
   started = true;
   NetInfo.addEventListener(state => { if (state.isConnected) requestSync(); });
@@ -57,13 +61,20 @@ export function requestSync() {
   void run();
 }
 
-async function run() {
+/** Explicit user-triggered sync ("Sync now") — resolves with the outcome so the UI can report it. */
+export async function syncNow(): Promise<SyncResult> {
+  if (!API) return 'noapi';
+  if (inFlight) return 'busy';
+  return run();
+}
+
+async function run(): Promise<SyncResult> {
   inFlight = true;
   try {
     const net = await NetInfo.fetch();
-    if (!net.isConnected) return;
+    if (!net.isConnected) return 'offline';
     const token = getMeta('authToken');
-    if (!token) return; // fully usable without an account
+    if (!token) return 'signedout'; // fully usable without an account
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
     // push
@@ -77,34 +88,41 @@ async function run() {
     if (hasDirty) {
       const res = await fetch(`${API}/sync`, { method: 'POST', headers, body: JSON.stringify(body) });
       if (res.status === 401) return handleExpired();
-      if (res.ok) for (const c of COLLECTIONS) if (pushed[c]) markClean(c, pushed[c]);
+      if (!res.ok) return 'error';
+      for (const c of COLLECTIONS) if (pushed[c]) markClean(c, pushed[c]);
     }
 
     // pull (last-write-wins by updatedAt; local dirty rows win until pushed)
     const since = getMeta('lastPulledAt') ?? '0';
     const res = await fetch(`${API}/sync?since=${since}`, { headers });
     if (res.status === 401) return handleExpired();
-    if (res.ok) {
-      const data = await res.json();
-      let applied = 0;
-      for (const c of COLLECTIONS) {
-        for (const row of data[c] ?? []) {
-          upsert(c, row.id, row.data, { clean: true, updatedAt: row.updatedAt, deleted: row.deleted });
-          applied++;
-        }
+    if (!res.ok) return 'error';
+    const data = await res.json();
+    let applied = 0;
+    for (const c of COLLECTIONS) {
+      for (const row of data[c] ?? []) {
+        upsert(c, row.id, row.data, { clean: true, updatedAt: row.updatedAt, deleted: row.deleted });
+        applied++;
       }
-      setMeta('lastPulledAt', String(data.serverTime ?? Date.now()));
-      if (applied > 0) onPulled?.(); // re-hydrate the store from SQLite
     }
+    setMeta('lastPulledAt', String(data.serverTime ?? Date.now()));
+    if (applied > 0) onPulled?.(); // re-hydrate the store from SQLite
+
+    const ts = Date.now();
+    setMeta('lastSyncAt', String(ts));
+    onSynced?.(ts);
+    return 'ok';
   } catch {
-    // stay silent — offline-first; reconnect/foreground/next write retries
+    // background runs stay silent — offline-first; reconnect/foreground/next write retries
+    return 'error';
   } finally {
     inFlight = false;
     if (pending) { pending = false; requestSync(); }
   }
 }
 
-function handleExpired() {
+function handleExpired(): SyncResult {
   signOut();
   onSignedOut?.();
+  return 'expired';
 }
