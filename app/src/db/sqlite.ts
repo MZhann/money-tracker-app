@@ -56,6 +56,11 @@ export function wipeAll() {
   db.runSync('DELETE FROM rows');
 }
 
+/** Marks every row dirty so the next sync uploads the full local dataset (used right after sign-in). */
+export function markAllDirty() {
+  db.runSync('UPDATE rows SET dirty = 1');
+}
+
 export function getMeta(key: string): string | null {
   const r = db.getFirstSync<{ value: string }>('SELECT value FROM meta WHERE key = ?', [key]);
   return r?.value ?? null;

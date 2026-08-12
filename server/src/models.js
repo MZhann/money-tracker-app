@@ -19,7 +19,7 @@ const syncedSchema = new mongoose.Schema({
 syncedSchema.index({ userId: 1, id: 1 }, { unique: true });
 syncedSchema.index({ userId: 1, updatedAt: 1 });
 
-export const COLLECTIONS = ['accounts', 'categories', 'transactions', 'debts', 'settings'];
+export const COLLECTIONS = ['accounts', 'categories', 'transactions', 'debts', 'assets', 'settings'];
 export const models = Object.fromEntries(
   COLLECTIONS.map(c => [c, mongoose.model(c, syncedSchema)])
 );

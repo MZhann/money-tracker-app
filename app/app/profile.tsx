@@ -6,6 +6,7 @@ import { CapsLabel, Card, CategoryIcon, Chip, CurrencyPicker, Icon, catTint } fr
 import { exportMarkdown } from '@/export/markdown';
 import { CAT_COLORS, CatColor } from '@/lib/money';
 import { useFlow } from '@/store/useFlow';
+import { hasApi, requestSync } from '@/sync/sync';
 import { THEMES, ThemeId, font, radius, space } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
@@ -28,8 +29,21 @@ export default function Profile() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { settings, accounts, categories, transactions, debts, assets, setSettings, addCategory, deleteCategory, eraseAll, showToast } = useFlow();
+  const { settings, accounts, categories, transactions, debts, assets, setSettings, addCategory, deleteCategory, eraseAll, showToast, syncEmail, signIn, signOut } = useFlow();
   const initials = settings.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const doAuth = async (mode: 'register' | 'login') => {
+    if (!email.trim() || !password) return showToast('Enter email and password');
+    setBusy(true);
+    const err = await signIn(mode, email, password);
+    setBusy(false);
+    if (err) return showToast(err);
+    setEmail(''); setPassword('');
+    showToast(mode === 'register' ? 'Account created — syncing your data' : 'Signed in — syncing');
+  };
 
   const [catsOpen, setCatsOpen] = useState(false);
   const [catName, setCatName] = useState('');
@@ -62,7 +76,8 @@ export default function Profile() {
   });
 
   return (
-    <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: space(5), paddingBottom: 32, gap: space(4) }}>
+    <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: space(5), paddingBottom: 32, gap: space(4) }}
+      automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Pressable onPress={() => router.back()} hitSlop={8} style={{ width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="chevronLeft" size={20} color={t.textMuted} />
@@ -79,6 +94,69 @@ export default function Profile() {
           <TextInput value={settings.name} onChangeText={v => setSettings({ name: v })}
             style={{ fontFamily: font.bodyMedium, fontSize: 16, color: t.textBody, padding: 0 }} />
         </View>
+      </Card>
+
+      <Card style={{ padding: 16, gap: 10 }}>
+        <Text style={{ fontFamily: font.display, fontSize: 16, color: t.textBody }}>Cloud backup</Text>
+        {!hasApi() ? (
+          <Text style={{ fontFamily: font.body, fontSize: 12.5, color: t.textFaint, lineHeight: 18 }}>
+            Sync server not configured. Set EXPO_PUBLIC_API_URL in app/.env and restart Expo to enable backup.
+          </Text>
+        ) : syncEmail ? (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.positive }} />
+              <Text style={{ fontFamily: font.body, fontSize: 13, color: t.textBody }}>Backed up as {syncEmail}</Text>
+            </View>
+            <Text style={{ fontFamily: font.body, fontSize: 11, color: t.textFaint }}>
+              Every change syncs automatically when you're online.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable onPress={() => { requestSync(); showToast('Syncing…'); }} style={({ pressed }) => ({
+                flex: 1, height: 42, borderRadius: radius.md, backgroundColor: pressed ? t.accentDeep : t.accent,
+                alignItems: 'center', justifyContent: 'center',
+              })}>
+                <Text style={{ fontFamily: font.bodyMedium, fontSize: 13, color: t.onAccent }}>Sync now</Text>
+              </Pressable>
+              <Pressable onPress={() => { signOut(); showToast('Signed out — data stays on this phone'); }} style={{
+                height: 42, paddingHorizontal: 16, borderRadius: radius.md, borderWidth: 1, borderColor: t.borderSoft,
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Text style={{ fontFamily: font.bodyMedium, fontSize: 13, color: t.textMuted }}>Log out</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={{ fontFamily: font.body, fontSize: 12.5, color: t.textFaint }}>
+              Sign in to back up your data to the cloud and sync across devices.
+            </Text>
+            <TextInput
+              value={email} onChangeText={setEmail} placeholder="Email" placeholderTextColor={t.textFaint}
+              autoCapitalize="none" keyboardType="email-address"
+              style={{ borderWidth: 1, borderColor: t.borderSoft, borderRadius: radius.md, padding: 12, backgroundColor: t.surfaceRaised, fontFamily: font.body, fontSize: 14, color: t.textBody }}
+            />
+            <TextInput
+              value={password} onChangeText={setPassword} placeholder="Password (6+ characters)" placeholderTextColor={t.textFaint}
+              secureTextEntry
+              style={{ borderWidth: 1, borderColor: t.borderSoft, borderRadius: radius.md, padding: 12, backgroundColor: t.surfaceRaised, fontFamily: font.body, fontSize: 14, color: t.textBody }}
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable disabled={busy} onPress={() => doAuth('login')} style={({ pressed }) => ({
+                flex: 1, height: 44, borderRadius: radius.md, backgroundColor: pressed ? t.accentDeep : t.accent,
+                alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1,
+              })}>
+                <Text style={{ fontFamily: font.bodyMedium, fontSize: 13.5, color: t.onAccent }}>{busy ? '…' : 'Log in'}</Text>
+              </Pressable>
+              <Pressable disabled={busy} onPress={() => doAuth('register')} style={{
+                flex: 1, height: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: t.accent,
+                alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.6 : 1,
+              }}>
+                <Text style={{ fontFamily: font.bodyMedium, fontSize: 13.5, color: t.accentDeep }}>Create account</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </Card>
 
       <Card style={{ padding: 16, gap: 10 }}>

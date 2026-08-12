@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: money-tracker-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: MONGODB_URI
+        sync: false # paste your Atlas URI in the Render dashboard
+      - key: JWT_SECRET
+        generateValue: true

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { Account, Asset, Category, Currency, Debt, Settings, Tx, monthKey, toKZT, uuid } from '../lib/money';
 import { initDb, loadAll, softDelete, upsert, getMeta, setMeta, wipeAll } from '../db/sqlite';
 import { defaultCategories, defaultSettings } from '../data/seed';
-import { requestSync } from '../sync/sync';
+import { requestSync, signIn, signOut, startSync } from '../sync/sync';
 
 interface FlowState {
   ready: boolean;
@@ -13,6 +13,7 @@ interface FlowState {
   debts: Debt[];
   assets: Asset[];
   toast: string;
+  syncEmail: string | null;
   init: () => void;
   showToast: (m: string) => void;
   setSettings: (patch: Partial<Settings>) => void;
@@ -28,6 +29,8 @@ interface FlowState {
   saveAsset: (a: Asset) => void;
   deleteAsset: (id: string) => void;
   eraseAll: () => void;
+  signIn: (mode: 'register' | 'login', email: string, password: string) => Promise<string | null>;
+  signOut: () => void;
 }
 
 let toastTimer: ReturnType<typeof setTimeout>;
@@ -43,6 +46,7 @@ export const useFlow = create<FlowState>((set, get) => ({
   settings: defaultSettings,
   accounts: [], categories: [], transactions: [], debts: [], assets: [],
   toast: '',
+  syncEmail: null,
 
   init: () => {
     initDb();
@@ -61,6 +65,11 @@ export const useFlow = create<FlowState>((set, get) => ({
       transactions: loadAll<Tx>('transactions'),
       debts: loadAll<Debt>('debts'),
       assets: loadAll<Asset>('assets'),
+      syncEmail: getMeta('syncEmail') || null,
+    });
+    startSync({
+      onPulled: () => get().init(), // pulled rows land in SQLite; reload state from it
+      onSignedOut: () => set({ syncEmail: null }),
     });
     requestSync();
   },
@@ -173,6 +182,17 @@ export const useFlow = create<FlowState>((set, get) => ({
     softDelete('assets', id);
     set({ assets: get().assets.filter(a => a.id !== id) });
     requestSync();
+  },
+
+  signIn: async (mode, email, password) => {
+    const err = await signIn(mode, email, password);
+    if (!err) set({ syncEmail: email.trim() });
+    return err;
+  },
+
+  signOut: () => {
+    signOut();
+    set({ syncEmail: null });
   },
 
   eraseAll: () => {
