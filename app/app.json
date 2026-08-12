@@ -6,8 +6,40 @@
     "scheme": "flow",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "ios": { "supportsTablet": false, "bundleIdentifier": "kz.flow.app" },
-    "android": { "package": "kz.flow.app" },
-    "plugins": ["expo-router", "expo-font"]
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "kz.flow.app"
+    },
+    "android": {
+      "package": "kz.flow.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-bg.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#F6F2E7",
+          "dark": {
+            "backgroundColor": "#23253A"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "635c84c8-35a8-436b-a21d-6d5a3494d2c1"
+      }
+    },
+    "owner": "zhanbo04"
   }
 }

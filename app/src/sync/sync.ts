@@ -13,14 +13,17 @@ let started = false;
 let onPulled: (() => void) | null = null;
 let onSignedOut: (() => void) | null = null;
 let onSynced: ((ts: number) => void) | null = null;
+let onStatus: ((message: string) => void) | null = null;
+let errorNotified = false; // one failure toast per streak, not one per retry
 
 export const hasApi = () => !!API;
 
 /** Call once at app start: registers connectivity + foreground listeners and the pull callback. */
-export function startSync(callbacks: { onPulled: () => void; onSignedOut: () => void; onSynced: (ts: number) => void }) {
+export function startSync(callbacks: { onPulled: () => void; onSignedOut: () => void; onSynced: (ts: number) => void; onStatus: (message: string) => void }) {
   onPulled = callbacks.onPulled;
   onSignedOut = callbacks.onSignedOut;
   onSynced = callbacks.onSynced;
+  onStatus = callbacks.onStatus;
   if (started || !API) return;
   started = true;
   NetInfo.addEventListener(state => { if (state.isConnected) requestSync(); });
@@ -65,10 +68,10 @@ export function requestSync() {
 export async function syncNow(): Promise<SyncResult> {
   if (!API) return 'noapi';
   if (inFlight) return 'busy';
-  return run();
+  return run(false); // the caller shows the result; no engine toast on top
 }
 
-async function run(): Promise<SyncResult> {
+async function run(notify = true): Promise<SyncResult> {
   inFlight = true;
   try {
     const net = await NetInfo.fetch();
@@ -80,23 +83,23 @@ async function run(): Promise<SyncResult> {
     // push
     const body: Record<string, unknown> = {};
     const pushed: Record<string, string[]> = {};
-    let hasDirty = false;
+    let pushedCount = 0;
     for (const c of COLLECTIONS) {
       const rows = dirtyRows(c);
-      if (rows.length) { body[c] = rows; pushed[c] = rows.map(r => r.id); hasDirty = true; }
+      if (rows.length) { body[c] = rows; pushed[c] = rows.map(r => r.id); pushedCount += rows.length; }
     }
-    if (hasDirty) {
+    if (pushedCount > 0) {
       const res = await fetch(`${API}/sync`, { method: 'POST', headers, body: JSON.stringify(body) });
-      if (res.status === 401) return handleExpired();
-      if (!res.ok) return 'error';
+      if (res.status === 401) return handleExpired(notify);
+      if (!res.ok) return fail(notify);
       for (const c of COLLECTIONS) if (pushed[c]) markClean(c, pushed[c]);
     }
 
     // pull (last-write-wins by updatedAt; local dirty rows win until pushed)
     const since = getMeta('lastPulledAt') ?? '0';
     const res = await fetch(`${API}/sync?since=${since}`, { headers });
-    if (res.status === 401) return handleExpired();
-    if (!res.ok) return 'error';
+    if (res.status === 401) return handleExpired(notify);
+    if (!res.ok) return fail(notify);
     const data = await res.json();
     let applied = 0;
     for (const c of COLLECTIONS) {
@@ -111,18 +114,30 @@ async function run(): Promise<SyncResult> {
     const ts = Date.now();
     setMeta('lastSyncAt', String(ts));
     onSynced?.(ts);
+    errorNotified = false;
+    // Only announce syncs that moved data — silent for routine no-op checks.
+    if (notify && (pushedCount > 0 || applied > 0)) onStatus?.('Synced — backed up to cloud ✓');
     return 'ok';
   } catch {
-    // background runs stay silent — offline-first; reconnect/foreground/next write retries
-    return 'error';
+    // offline-first: reconnect/foreground/next write retries automatically
+    return fail(notify);
   } finally {
     inFlight = false;
     if (pending) { pending = false; requestSync(); }
   }
 }
 
-function handleExpired(): SyncResult {
+function fail(notify: boolean): SyncResult {
+  if (notify && !errorNotified) {
+    errorNotified = true;
+    onStatus?.("Couldn't back up — changes saved on phone, retrying automatically");
+  }
+  return 'error';
+}
+
+function handleExpired(notify: boolean): SyncResult {
   signOut();
   onSignedOut?.();
+  if (notify) onStatus?.('Session expired — sign in again to keep syncing');
   return 'expired';
 }

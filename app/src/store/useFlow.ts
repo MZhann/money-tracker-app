@@ -74,6 +74,7 @@ export const useFlow = create<FlowState>((set, get) => ({
       onPulled: () => get().init(), // pulled rows land in SQLite; reload state from it
       onSignedOut: () => set({ syncEmail: null }),
       onSynced: ts => set({ lastSyncAt: ts }),
+      onStatus: m => get().showToast(m),
     });
     requestSync();
   },
