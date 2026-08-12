@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { Chip, Segmented } from '@/components/ui';
+import { CurrencyPicker, Segmented } from '@/components/ui';
 import { Currency } from '@/lib/money';
 import { useFlow } from '@/store/useFlow';
 import { font, radius, space } from '@/theme/tokens';
@@ -26,7 +26,8 @@ export default function AddDebt() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: t.surfaceCard }} contentContainerStyle={{ padding: space(5), paddingBottom: 44, gap: space(3) }}>
+    <ScrollView style={{ backgroundColor: t.surfaceCard }} contentContainerStyle={{ padding: space(5), paddingBottom: 44, gap: space(3) }}
+      automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled">
       <Text style={{ fontFamily: font.display, fontSize: 18, color: t.textBody }}>Add debt</Text>
       <Segmented
         options={[{ value: 'lent', label: 'I lent money' }, { value: 'borrowed', label: 'I borrowed' }]}
@@ -36,16 +37,12 @@ export default function AddDebt() {
         value={person} onChangeText={setPerson} placeholder="Who?" placeholderTextColor={t.textFaint}
         style={{ borderWidth: 1, borderColor: t.borderSoft, borderRadius: radius.md, padding: 12, backgroundColor: t.surfaceRaised, fontFamily: font.body, fontSize: 15, color: t.textBody }}
       />
-      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-        <TextInput
-          value={amount} onChangeText={v => setAmount(v.replace(/[^\d.,]/g, ''))} keyboardType="decimal-pad"
-          placeholder="Amount" placeholderTextColor={t.textFaint}
-          style={{ flex: 1, borderWidth: 1, borderColor: t.borderSoft, borderRadius: radius.md, padding: 12, backgroundColor: t.surfaceRaised, fontFamily: font.mono, fontSize: 14, color: t.textBody }}
-        />
-        {(['KZT', 'USD'] as Currency[]).map(c => (
-          <Chip key={c} label={c} selected={currency === c} onPress={() => setCurrency(c)} />
-        ))}
-      </View>
+      <TextInput
+        value={amount} onChangeText={v => setAmount(v.replace(/[^\d.,]/g, ''))} keyboardType="decimal-pad"
+        placeholder="Amount" placeholderTextColor={t.textFaint}
+        style={{ borderWidth: 1, borderColor: t.borderSoft, borderRadius: radius.md, padding: 12, backgroundColor: t.surfaceRaised, fontFamily: font.mono, fontSize: 14, color: t.textBody }}
+      />
+      <CurrencyPicker value={currency} onChange={setCurrency} />
       <Pressable onPress={save} style={({ pressed }) => ({
         height: 52, borderRadius: radius.pill, backgroundColor: pressed ? t.accentDeep : t.accent,
         alignItems: 'center', justifyContent: 'center', transform: [{ scale: pressed ? 0.98 : 1 }], marginTop: 6,

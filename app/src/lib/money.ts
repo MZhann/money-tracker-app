@@ -1,16 +1,25 @@
-export type Currency = 'KZT' | 'USD' | 'EUR' | 'RUB';
+export type Currency = 'KZT' | 'USD' | 'EUR' | 'RUB' | 'GBP' | 'CNY' | 'JPY' | 'TRY' | 'AED';
 export type AccountType = 'debit' | 'credit' | 'cash' | 'savings';
 export type TxType = 'expense' | 'income' | 'transfer';
-export type CatColor = 'moss' | 'clay' | 'lake' | 'sun';
+export type CatColor =
+  | 'moss' | 'clay' | 'lake' | 'sun'
+  | 'rose' | 'violet' | 'indigo' | 'teal' | 'lime' | 'amber'
+  | 'coral' | 'slate' | 'pink' | 'cyan' | 'brown' | 'mint';
+export const CAT_COLORS: CatColor[] = [
+  'moss', 'clay', 'lake', 'sun', 'rose', 'violet', 'indigo', 'teal',
+  'lime', 'amber', 'coral', 'slate', 'pink', 'cyan', 'brown', 'mint',
+];
 
-export const CURRENCIES: Currency[] = ['KZT', 'USD', 'EUR', 'RUB'];
-export const SYM: Record<Currency, string> = { KZT: '₸', USD: '$', EUR: '€', RUB: '₽' };
+export const CURRENCIES: Currency[] = ['KZT', 'USD', 'EUR', 'RUB', 'GBP', 'CNY', 'JPY', 'TRY', 'AED'];
+export const SYM: Record<Currency, string> = { KZT: '₸', USD: '$', EUR: '€', RUB: '₽', GBP: '£', CNY: 'CN¥', JPY: '¥', TRY: '₺', AED: 'Dh' };
 // FX to KZT — v1 hardcoded; replace with a rates endpoint later.
-export const FX: Record<Currency, number> = { KZT: 1, USD: 540, EUR: 585, RUB: 6.7 };
+export const FX: Record<Currency, number> = { KZT: 1, USD: 540, EUR: 585, RUB: 6.7, GBP: 680, CNY: 75, JPY: 3.6, TRY: 13, AED: 147 };
 export const TYPE_LABELS: Record<AccountType, string> = { debit: 'Debit', credit: 'Credit', cash: 'Cash', savings: 'Savings' };
 
 export interface Settings { name: string; baseCurrency: Currency; theme: import('../theme/tokens').ThemeId; }
-export interface Account { id: string; name: string; type: AccountType; balances: Partial<Record<Currency, number>>; }
+// Credit accounts: balance is negative = what you owe; `limits` is the credit line
+// per currency, display-only — available credit is never counted in net worth.
+export interface Account { id: string; name: string; type: AccountType; balances: Partial<Record<Currency, number>>; limits?: Partial<Record<Currency, number>>; order?: number; }
 export interface Category { id: string; name: string; kind: 'expense' | 'income'; icon: string; color: CatColor; }
 export interface Tx {
   id: string; type: TxType; amount: number; currency: Currency;
@@ -18,6 +27,8 @@ export interface Tx {
   note: string; date: string; // YYYY-MM-DD
 }
 export interface Debt { id: string; person: string; dir: 'lent' | 'borrowed'; amount: number; currency: Currency; }
+// Physical property counted in net worth (PS5, phone, home…). Value = what it would sell for today.
+export interface Asset { id: string; name: string; value: number; currency: Currency; }
 
 export const uuid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 export const todayISO = () => {

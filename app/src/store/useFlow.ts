@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { Account, Category, Currency, Debt, Settings, Tx, monthKey, toKZT, uuid } from '../lib/money';
-import { initDb, loadAll, softDelete, upsert, getMeta, setMeta } from '../db/sqlite';
-import { seedAccounts, seedCategories, seedDebts, seedSettings, seedTx } from '../data/seed';
+import { Account, Asset, Category, Currency, Debt, Settings, Tx, monthKey, toKZT, uuid } from '../lib/money';
+import { initDb, loadAll, softDelete, upsert, getMeta, setMeta, wipeAll } from '../db/sqlite';
+import { defaultCategories, defaultSettings } from '../data/seed';
 import { requestSync } from '../sync/sync';
 
 interface FlowState {
@@ -11,6 +11,7 @@ interface FlowState {
   categories: Category[];
   transactions: Tx[];
   debts: Debt[];
+  assets: Asset[];
   toast: string;
   init: () => void;
   showToast: (m: string) => void;
@@ -19,11 +20,14 @@ interface FlowState {
   deleteTx: (id: string) => void;
   saveAccount: (acc: Account) => void;
   deleteAccount: (id: string) => void;
+  moveAccount: (id: string, dir: -1 | 1) => void;
   addCategory: (c: Omit<Category, 'id'>) => void;
   deleteCategory: (id: string) => void;
   addDebt: (d: Omit<Debt, 'id'>) => void;
   settleDebt: (id: string) => void;
-  resetToSample: () => void;
+  saveAsset: (a: Asset) => void;
+  deleteAsset: (id: string) => void;
+  eraseAll: () => void;
 }
 
 let toastTimer: ReturnType<typeof setTimeout>;
@@ -36,27 +40,27 @@ function applyBalance(accounts: Account[], accId: string, cur: Currency, delta: 
 
 export const useFlow = create<FlowState>((set, get) => ({
   ready: false,
-  settings: seedSettings,
-  accounts: [], categories: [], transactions: [], debts: [],
+  settings: defaultSettings,
+  accounts: [], categories: [], transactions: [], debts: [], assets: [],
   toast: '',
 
   init: () => {
     initDb();
-    if (!getMeta('seeded')) {
-      upsert('settings', 'settings', seedSettings, { clean: true });
-      for (const a of seedAccounts) upsert('accounts', a.id, a, { clean: true });
-      for (const c of seedCategories) upsert('categories', c.id, c, { clean: true });
-      for (const t of seedTx) upsert('transactions', t.id, t, { clean: true });
-      for (const d of seedDebts) upsert('debts', d.id, d, { clean: true });
-      setMeta('seeded', '1');
+    // 'seeded' = '1' was the old sample-data seed — wipe it so those installs start clean too.
+    if (getMeta('seeded') !== '2') {
+      wipeAll();
+      upsert('settings', 'settings', defaultSettings, { clean: true });
+      for (const c of defaultCategories) upsert('categories', c.id, c, { clean: true });
+      setMeta('seeded', '2');
     }
     set({
       ready: true,
-      settings: loadAll<Settings>('settings')[0] ?? seedSettings,
-      accounts: loadAll<Account>('accounts'),
+      settings: loadAll<Settings>('settings')[0] ?? defaultSettings,
+      accounts: loadAll<Account>('accounts').sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
       categories: loadAll<Category>('categories'),
       transactions: loadAll<Tx>('transactions'),
       debts: loadAll<Debt>('debts'),
+      assets: loadAll<Asset>('assets'),
     });
     requestSync();
   },
@@ -106,15 +110,29 @@ export const useFlow = create<FlowState>((set, get) => ({
   },
 
   saveAccount: (acc) => {
-    const exists = get().accounts.some(a => a.id === acc.id);
-    upsert('accounts', acc.id, acc);
-    set({ accounts: exists ? get().accounts.map(a => a.id === acc.id ? acc : a) : [...get().accounts, acc] });
+    const prev = get().accounts;
+    const exists = prev.some(a => a.id === acc.id);
+    const withOrder = { ...acc, order: acc.order ?? (exists ? prev.find(a => a.id === acc.id)?.order : prev.length) ?? prev.length };
+    upsert('accounts', withOrder.id, withOrder);
+    set({ accounts: exists ? prev.map(a => a.id === withOrder.id ? withOrder : a) : [...prev, withOrder] });
     requestSync();
   },
 
   deleteAccount: (id) => {
     softDelete('accounts', id);
     set({ accounts: get().accounts.filter(a => a.id !== id) });
+    requestSync();
+  },
+
+  moveAccount: (id, dir) => {
+    const list = [...get().accounts];
+    const i = list.findIndex(a => a.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    const reindexed = list.map((a, idx) => ({ ...a, order: idx }));
+    for (const a of reindexed) upsert('accounts', a.id, a);
+    set({ accounts: reindexed });
     requestSync();
   },
 
@@ -144,24 +162,34 @@ export const useFlow = create<FlowState>((set, get) => ({
     requestSync();
   },
 
-  resetToSample: () => {
+  saveAsset: (asset) => {
+    const exists = get().assets.some(a => a.id === asset.id);
+    upsert('assets', asset.id, asset);
+    set({ assets: exists ? get().assets.map(a => a.id === asset.id ? asset : a) : [...get().assets, asset] });
+    requestSync();
+  },
+
+  deleteAsset: (id) => {
+    softDelete('assets', id);
+    set({ assets: get().assets.filter(a => a.id !== id) });
+    requestSync();
+  },
+
+  eraseAll: () => {
     for (const t of get().transactions) softDelete('transactions', t.id);
     for (const a of get().accounts) softDelete('accounts', a.id);
     for (const d of get().debts) softDelete('debts', d.id);
+    for (const a of get().assets) softDelete('assets', a.id);
     for (const c of get().categories) softDelete('categories', c.id);
-    upsert('settings', 'settings', seedSettings);
-    for (const a of seedAccounts) upsert('accounts', a.id, a);
-    for (const c of seedCategories) upsert('categories', c.id, c);
-    for (const t of seedTx) upsert('transactions', t.id, t);
-    for (const d of seedDebts) upsert('debts', d.id, d);
-    set({ settings: seedSettings, accounts: seedAccounts, categories: seedCategories, transactions: seedTx, debts: seedDebts });
+    for (const c of defaultCategories) upsert('categories', c.id, c);
+    set({ accounts: [], categories: defaultCategories, transactions: [], debts: [], assets: [] });
     requestSync();
   },
 }));
 
 // ---- derived selectors (pure) ----
-export function netWorthKZT(accounts: Account[], debts: Debt[]) {
-  let assets = 0, liab = 0;
+export function netWorthKZT(accounts: Account[], debts: Debt[], property: Asset[] = []) {
+  let assets = 0, liab = 0, prop = 0;
   for (const a of accounts) for (const [c, v] of Object.entries(a.balances)) {
     const k = toKZT(v as number, c as Currency);
     if (k >= 0) assets += k; else liab += -k;
@@ -170,7 +198,8 @@ export function netWorthKZT(accounts: Account[], debts: Debt[]) {
     const k = toKZT(d.amount, d.currency);
     if (d.dir === 'lent') assets += k; else liab += k;
   }
-  return { assets, liab, net: assets - liab };
+  for (const p of property) prop += toKZT(p.value, p.currency);
+  return { assets: assets + prop, prop, liab, net: assets + prop - liab };
 }
 
 export function monthFlowKZT(transactions: Tx[], key: string) {
@@ -181,6 +210,22 @@ export function monthFlowKZT(transactions: Tx[], key: string) {
     if (t.type === 'income') inn += v; else if (t.type === 'expense') out += v;
   }
   return { inn, out };
+}
+
+/** Net money flow through one account for a month (income + transfers-in − expense − transfers-out), in KZT. */
+export function accountMonthFlowKZT(transactions: Tx[], accountId: string, key: string) {
+  let net = 0;
+  for (const tx of transactions) {
+    if (monthKey(tx.date) !== key) continue;
+    const v = toKZT(tx.amount, tx.currency);
+    if (tx.type === 'income' && tx.accountId === accountId) net += v;
+    else if (tx.type === 'expense' && tx.accountId === accountId) net -= v;
+    else if (tx.type === 'transfer') {
+      if (tx.accountId === accountId) net -= v;
+      if (tx.toId === accountId) net += v;
+    }
+  }
+  return net;
 }
 
 export function categoryTotalsKZT(transactions: Tx[], key: string, kind: 'expense' | 'income') {

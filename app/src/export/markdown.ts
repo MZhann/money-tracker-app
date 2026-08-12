@@ -1,10 +1,10 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { Account, Category, Currency, Debt, Settings, SYM, TYPE_LABELS, Tx, addMonths, fmt, fromKZT, grp, monthKey, monthLabel, toKZT, todayISO } from '../lib/money';
+import { Account, Asset, Category, Currency, Debt, Settings, SYM, TYPE_LABELS, Tx, addMonths, fmt, fromKZT, grp, monthKey, monthLabel, toKZT, todayISO } from '../lib/money';
 import { categoryTotalsKZT, monthFlowKZT, netWorthKZT } from '../store/useFlow';
 
 export async function exportMarkdown(
-  settings: Settings, accounts: Account[], categories: Category[], transactions: Tx[], debts: Debt[],
+  settings: Settings, accounts: Account[], categories: Category[], transactions: Tx[], debts: Debt[], assets: Asset[] = [],
 ) {
   const base = settings.baseCurrency;
   const nowKey = todayISO().slice(0, 7);
@@ -12,7 +12,7 @@ export async function exportMarkdown(
   const cat = (id?: string | null) => categories.find(c => c.id === id);
   const acc = (id?: string | null) => accounts.find(a => a.id === id);
 
-  const { assets, liab, net } = netWorthKZT(accounts, debts);
+  const { assets: assetsKZT, liab, net } = netWorthKZT(accounts, debts, assets);
   const months = [2, 1, 0].map(off => addMonths(nowKey, -off));
   const sumLines = months.map(k => {
     const m = monthFlowKZT(transactions, k);
@@ -39,7 +39,10 @@ export async function exportMarkdown(
     `_Exported ${todayISO()} · amounts ≈ in ${base}_`, '',
     '## Monthly summary', '', '| Month | In | Out | Net |', '|---|---|---|---|', ...sumLines, '',
     '## Accounts & net worth', '', `| Account | Type | Balance | ≈ ${base} |`, '|---|---|---|---|', ...accLines, '',
-    `- **Assets:** ${f(assets)}`, `- **Liabilities:** ${f(liab)}`, `- **Net worth:** ${f(net)}`, '',
+    ...(assets.length
+      ? ['### Property', '', ...assets.map(a => `- ${a.name} — ${grp(a.value)} ${SYM[a.currency]}`), '']
+      : []),
+    `- **Assets:** ${f(assetsKZT)}`, `- **Liabilities:** ${f(liab)}`, `- **Net worth:** ${f(net)}`, '',
     `## Category breakdown — ${monthLabel(nowKey)}`, '', '| Category | Spent | Share |', '|---|---|---|', ...catLines, '',
     '## Transactions', '', '| Date | Type | Category | Account | Amount | Note |', '|---|---|---|---|---|---|', ...txLines, '',
   ].join('\n');

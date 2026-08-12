@@ -30,9 +30,13 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.surfacePage } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="sheets/add-transaction" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="account/[id]" options={{ animation: 'slide_from_right' }} />
+        {/* Full modal card (not formSheet): its flex layout pins the save button to the bottom. */}
+        <Stack.Screen name="sheets/add-transaction" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="sheets/edit-account" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="sheets/add-debt" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="sheets/edit-asset" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="sheets/add-category" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />
       </Stack>
       <Toast />
     </View>

@@ -2,7 +2,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { dirtyRows, markClean, upsert, getMeta, setMeta } from '../db/sqlite';
 
 const API = process.env.EXPO_PUBLIC_API_URL ?? '';
-const COLLECTIONS = ['accounts', 'categories', 'transactions', 'debts', 'settings'] as const;
+const COLLECTIONS = ['accounts', 'categories', 'transactions', 'debts', 'assets', 'settings'] as const;
 
 let inFlight = false;
 let pending = false;

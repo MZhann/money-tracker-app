@@ -8,6 +8,6 @@
     "userInterfaceStyle": "automatic",
     "ios": { "supportsTablet": false, "bundleIdentifier": "kz.flow.app" },
     "android": { "package": "kz.flow.app" },
-    "plugins": ["expo-router", "expo-sqlite", "expo-font"]
+    "plugins": ["expo-router", "expo-font"]
   }
 }

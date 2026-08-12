@@ -2,9 +2,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CapsLabel, Card, CategoryIcon, Chip, Icon, catTint } from '@/components/ui';
+import { CapsLabel, Card, CategoryIcon, Chip, CurrencyPicker, Icon, catTint } from '@/components/ui';
 import { exportMarkdown } from '@/export/markdown';
-import { CURRENCIES, CatColor, SYM } from '@/lib/money';
+import { CAT_COLORS, CatColor } from '@/lib/money';
 import { useFlow } from '@/store/useFlow';
 import { THEMES, ThemeId, font, radius, space } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
@@ -13,14 +13,22 @@ const THEME_LIST: { id: ThemeId; name: string }[] = [
   { id: '', name: 'Paper' }, { id: 'mountain', name: 'Mountain' }, { id: 'ocean', name: 'Ocean' },
   { id: 'desert', name: 'Desert' }, { id: 'forest', name: 'Forest' }, { id: 'arctic', name: 'Arctic' }, { id: 'night', name: 'Night' },
 ];
-const CAT_ICONS = ['cart', 'coffee', 'car', 'bag', 'health', 'film', 'gift', 'trend'];
-const CAT_COLORS: CatColor[] = ['moss', 'clay', 'lake', 'sun'];
+const CAT_ICONS = [
+  'cart', 'dining', 'coffee', 'pizza', 'beer', 'cake',
+  'car', 'bus', 'train', 'plane', 'bike', 'fuel',
+  'home', 'sofa', 'plant', 'wrench', 'bolt', 'droplet',
+  'flame', 'wifi', 'phone', 'tshirt', 'bag', 'scissors',
+  'health', 'pill', 'dumbbell', 'paw', 'film', 'music',
+  'gamepad', 'camera', 'book', 'education', 'briefcase', 'laptop',
+  'gift', 'star', 'umbrella', 'globe', 'banknote', 'wallet',
+  'card', 'trend', 'repeat', 'chart', 'sparkle',
+];
 
 export default function Profile() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { settings, accounts, categories, transactions, debts, setSettings, addCategory, deleteCategory, resetToSample, showToast } = useFlow();
+  const { settings, accounts, categories, transactions, debts, assets, setSettings, addCategory, deleteCategory, eraseAll, showToast } = useFlow();
   const initials = settings.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   const [catsOpen, setCatsOpen] = useState(false);
@@ -37,7 +45,7 @@ export default function Profile() {
   };
 
   const onExport = async () => {
-    try { await exportMarkdown(settings, accounts, categories, transactions, debts); showToast('Markdown ready'); }
+    try { await exportMarkdown(settings, accounts, categories, transactions, debts, assets); showToast('Markdown ready'); }
     catch { showToast("Couldn't export right now"); }
   };
 
@@ -75,12 +83,8 @@ export default function Profile() {
 
       <Card style={{ padding: 16, gap: 10 }}>
         <Text style={{ fontFamily: font.display, fontSize: 16, color: t.textBody }}>Main currency</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          {CURRENCIES.map(c => (
-            <Chip key={c} label={`${SYM[c]} ${c}`} selected={settings.baseCurrency === c}
-              onPress={() => { setSettings({ baseCurrency: c }); showToast(`Totals now in ${c}`); }} />
-          ))}
-        </View>
+        <CurrencyPicker value={settings.baseCurrency}
+          onChange={c => { setSettings({ baseCurrency: c }); showToast(`Totals now in ${c}`); }} />
         <Text style={{ fontFamily: font.body, fontSize: 11, color: t.textFaint }}>Totals and charts are shown in this currency.</Text>
       </Card>
 
@@ -149,8 +153,8 @@ export default function Profile() {
       </Card>
 
       <View style={{ borderRadius: radius.lg, padding: 18, backgroundColor: t.heroA }}>
-        <Text style={{ fontFamily: font.display, fontSize: 16, color: t.onAccent }}>Take your data anywhere</Text>
-        <Text style={{ fontFamily: font.body, fontSize: 13, lineHeight: 18, color: t.onAccent, opacity: 0.85, marginTop: 6 }}>
+        <Text style={{ fontFamily: font.display, fontSize: 16, color: t.onHero }}>Take your data anywhere</Text>
+        <Text style={{ fontFamily: font.body, fontSize: 13, lineHeight: 18, color: t.onHero, opacity: 0.85, marginTop: 6 }}>
           Download your money flow as Markdown — drop it into Obsidian, Notion, or share it.
         </Text>
         <Pressable onPress={onExport} style={({ pressed }) => ({
@@ -162,11 +166,11 @@ export default function Profile() {
         </Pressable>
       </View>
 
-      <Pressable onPress={() => Alert.alert('Reset all data back to the sample?', undefined, [
+      <Pressable onPress={() => Alert.alert('Erase all data?', 'Accounts, transactions, debts, and property will be removed. Categories reset to the defaults.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: () => { resetToSample(); showToast('Sample data restored'); } },
+        { text: 'Erase', style: 'destructive', onPress: () => { eraseAll(); showToast('All data erased'); } },
       ])} style={{ alignSelf: 'center', padding: 8 }}>
-        <Text style={{ fontFamily: font.body, fontSize: 11, color: t.textFaint }}>Reset sample data</Text>
+        <Text style={{ fontFamily: font.body, fontSize: 11, color: t.textFaint }}>Erase all data</Text>
       </Pressable>
     </ScrollView>
   );

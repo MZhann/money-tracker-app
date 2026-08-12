@@ -11,13 +11,13 @@ export default function Home() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { settings, accounts, categories, transactions, debts, deleteTx, showToast } = useFlow();
+  const { settings, accounts, categories, transactions, debts, assets, deleteTx, showToast } = useFlow();
   const base = settings.baseCurrency;
 
   const hour = new Date().getHours();
   const greeting = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const initials = settings.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  const { net } = netWorthKZT(accounts, debts);
+  const { net } = netWorthKZT(accounts, debts, assets);
   const nowKey = new Date().toISOString().slice(0, 7);
   const flow = monthFlowKZT(transactions, nowKey);
 
@@ -56,16 +56,16 @@ export default function Home() {
       {/* Hero — theme ambient scenes: see design_handoff README ("Theme scenery"); add react-native-svg scenes here per theme. */}
       <View style={{ borderRadius: radius.xl, padding: 20, paddingVertical: 22, backgroundColor: t.heroA, overflow: 'hidden' }}>
         <View style={{ position: 'absolute', right: -30, top: -40, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-        <Text style={{ fontFamily: font.bodyMedium, fontSize: 11, letterSpacing: 0.9, textTransform: 'uppercase', color: t.onAccent, opacity: 0.75 }}>Net worth</Text>
-        <AmountText str={fmt(fromKZT(net, base), base)} color={t.onAccent} size={34} />
+        <Text style={{ fontFamily: font.bodyMedium, fontSize: 11, letterSpacing: 0.9, textTransform: 'uppercase', color: t.onHero, opacity: 0.75 }}>Net worth</Text>
+        <AmountText str={fmt(fromKZT(net, base), base)} color={t.onHero} size={34} />
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
           {[
             { label: 'In this month', val: fmt(fromKZT(flow.inn, base), base, '+') },
             { label: 'Out this month', val: '−' + fmt(fromKZT(flow.out, base), base, false) },
           ].map(s => (
             <View key={s.label} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: radius.md, padding: 10 }}>
-              <Text style={{ fontFamily: font.body, fontSize: 11, color: t.onAccent, opacity: 0.75 }}>{s.label}</Text>
-              <AmountText str={s.val} color={t.onAccent} size={15} />
+              <Text style={{ fontFamily: font.body, fontSize: 11, color: t.onHero, opacity: 0.75 }}>{s.label}</Text>
+              <AmountText str={s.val} color={t.onHero} size={15} />
             </View>
           ))}
         </View>

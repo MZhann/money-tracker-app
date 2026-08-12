@@ -2,10 +2,11 @@
 export type ThemeId = '' | 'mountain' | 'ocean' | 'desert' | 'forest' | 'arctic' | 'night';
 
 export interface Palette {
+  mode: 'light' | 'dark';
   surfacePage: string; surfaceCard: string; surfaceRaised: string; surfaceSunken: string;
   textBody: string; textMuted: string; textFaint: string;
   borderSoft: string; borderStrong: string;
-  accent: string; accentDeep: string; accentSoft: string; onAccent: string;
+  accent: string; accentDeep: string; accentSoft: string; onAccent: string; onHero: string;
   positive: string; positiveSoft: string;
   negative: string; negativeSoft: string;
   transfer: string; transferSoft: string;
@@ -14,10 +15,14 @@ export interface Palette {
 }
 
 const base: Palette = {
+  mode: 'light',
   surfacePage: '#F6F2E7', surfaceCard: '#FBF8F0', surfaceRaised: '#FEFCF7', surfaceSunken: '#EFEADC',
   textBody: '#464034', textMuted: '#746C5D', textFaint: '#9A927F',
   borderSoft: '#E2DCCB', borderStrong: '#D0C9B6',
   accent: '#5E8E68', accentDeep: '#3B6146', accentSoft: '#DFEDDD', onAccent: '#F5FBF2',
+  // onHero: text on heroA/heroB surfaces — unlike onAccent it must stay light even
+  // when a theme flips its accent bright (night), because hero stays dark everywhere.
+  onHero: '#F5FBF2',
   positive: '#5E8E68', positiveSoft: '#DFEDDD',
   negative: '#C07B57', negativeSoft: '#F7E5D7',
   transfer: '#5581A8', transferSoft: '#DCE8F4',
@@ -37,10 +42,11 @@ export const THEMES: Record<ThemeId, Palette> = {
     surfacePage: '#F0F3F5', surfaceCard: '#FAFCFD', surfaceSunken: '#E6EBEF', borderSoft: '#DCE2E7', borderStrong: '#C7D0D7',
   },
   night: {
+    mode: 'dark',
     surfacePage: '#23253A', surfaceCard: '#2B2D45', surfaceRaised: '#333550', surfaceSunken: '#1D1F31',
     textBody: '#E8E8EF', textMuted: '#B4B5C4', textFaint: '#8B8CA0',
     borderSoft: '#3C3E58', borderStrong: '#4E5070',
-    accent: '#A4CC72', accentDeep: '#84AC58', accentSoft: '#3A4A34', onAccent: '#20301C',
+    accent: '#A4CC72', accentDeep: '#84AC58', accentSoft: '#3A4A34', onAccent: '#20301C', onHero: '#EDEEF6',
     positive: '#8FC79A', positiveSoft: '#2F4636',
     negative: '#D89572', negativeSoft: '#4A382E',
     transfer: '#8FB2D4', transferSoft: '#2F3D50',

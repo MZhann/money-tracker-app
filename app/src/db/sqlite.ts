@@ -51,6 +51,11 @@ export function markClean(collection: string, ids: string[]) {
   for (const id of ids) db.runSync('UPDATE rows SET dirty = 0 WHERE collection = ? AND id = ?', [collection, id]);
 }
 
+/** Hard-deletes every row in every collection (meta is kept). Local-only reset — bypasses sync soft-deletes. */
+export function wipeAll() {
+  db.runSync('DELETE FROM rows');
+}
+
 export function getMeta(key: string): string | null {
   const r = db.getFirstSync<{ value: string }>('SELECT value FROM meta WHERE key = ?', [key]);
   return r?.value ?? null;
