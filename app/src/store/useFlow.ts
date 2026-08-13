@@ -78,6 +78,10 @@ export const useFlow = create<FlowState>((set, get) => ({
       onSynced: ts => set({ lastSyncAt: ts }),
       onStatus: m => get().showToast(m),
     });
+    // Local-first: mutations below only write SQLite (rows marked dirty) and never
+    // trigger a sync themselves, so nothing network-related runs mid-interaction.
+    // Dirty rows upload in the background here on app open, plus on foreground,
+    // reconnect, and sign-in (listeners registered by startSync / signIn).
     requestSync();
   },
 
@@ -107,7 +111,6 @@ export const useFlow = create<FlowState>((set, get) => ({
     upsert('transactions', tx.id, tx);
     for (const a of accounts) upsert('accounts', a.id, a);
     set({ transactions: [...get().transactions, tx], accounts });
-    requestSync();
   },
 
   updateTx: (tx) => {
@@ -130,7 +133,6 @@ export const useFlow = create<FlowState>((set, get) => ({
     upsert('transactions', tx.id, tx);
     for (const a of accounts) upsert('accounts', a.id, a);
     set({ transactions: get().transactions.map(x => x.id === tx.id ? tx : x), accounts });
-    requestSync();
   },
 
   deleteTx: (id) => {
@@ -146,7 +148,6 @@ export const useFlow = create<FlowState>((set, get) => ({
     softDelete('transactions', id);
     for (const a of accounts) upsert('accounts', a.id, a);
     set({ transactions: get().transactions.filter(t => t.id !== id), accounts });
-    requestSync();
   },
 
   saveAccount: (acc) => {
@@ -155,13 +156,11 @@ export const useFlow = create<FlowState>((set, get) => ({
     const withOrder = { ...acc, order: acc.order ?? (exists ? prev.find(a => a.id === acc.id)?.order : prev.length) ?? prev.length };
     upsert('accounts', withOrder.id, withOrder);
     set({ accounts: exists ? prev.map(a => a.id === withOrder.id ? withOrder : a) : [...prev, withOrder] });
-    requestSync();
   },
 
   deleteAccount: (id) => {
     softDelete('accounts', id);
     set({ accounts: get().accounts.filter(a => a.id !== id) });
-    requestSync();
   },
 
   reorderAccounts: (from, to) => {
@@ -180,7 +179,6 @@ export const useFlow = create<FlowState>((set, get) => ({
     const cat: Category = { ...c, id: uuid(), order: get().categories.length };
     upsert('categories', cat.id, cat);
     set({ categories: [...get().categories, cat] });
-    requestSync();
   },
 
   // from/to are indices within the kind-filtered list (what the picker shows);
@@ -203,33 +201,28 @@ export const useFlow = create<FlowState>((set, get) => ({
   deleteCategory: (id) => {
     softDelete('categories', id);
     set({ categories: get().categories.filter(c => c.id !== id) });
-    requestSync();
   },
 
   addDebt: (d) => {
     const debt: Debt = { ...d, id: uuid() };
     upsert('debts', debt.id, debt);
     set({ debts: [...get().debts, debt] });
-    requestSync();
   },
 
   settleDebt: (id) => {
     softDelete('debts', id);
     set({ debts: get().debts.filter(d => d.id !== id) });
-    requestSync();
   },
 
   saveAsset: (asset) => {
     const exists = get().assets.some(a => a.id === asset.id);
     upsert('assets', asset.id, asset);
     set({ assets: exists ? get().assets.map(a => a.id === asset.id ? asset : a) : [...get().assets, asset] });
-    requestSync();
   },
 
   deleteAsset: (id) => {
     softDelete('assets', id);
     set({ assets: get().assets.filter(a => a.id !== id) });
-    requestSync();
   },
 
   signIn: async (mode, email, password) => {
@@ -251,7 +244,6 @@ export const useFlow = create<FlowState>((set, get) => ({
     for (const c of get().categories) softDelete('categories', c.id);
     for (const c of defaultCategories) upsert('categories', c.id, c);
     set({ accounts: [], categories: defaultCategories, transactions: [], debts: [], assets: [] });
-    requestSync();
   },
 }));
 

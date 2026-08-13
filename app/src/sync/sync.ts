@@ -58,9 +58,10 @@ export function signOut() {
 }
 
 /**
- * Fire-and-forget: call after any local write. No-op when offline, unconfigured, or signed out.
- * Debounced: rapid writes (typing a name, dragging categories) collapse into one
- * sync that fires after the burst goes quiet, instead of one request per keystroke.
+ * Fire-and-forget background sync. No-op when offline, unconfigured, or signed out.
+ * Local writes never call this — they only mark rows dirty in SQLite. It runs on
+ * app open, foreground return, reconnect, and sign-in, pushing whatever is dirty.
+ * Debounced so bursts of triggers collapse into one request.
  */
 const SYNC_DEBOUNCE_MS = 1500;
 let syncTimer: ReturnType<typeof setTimeout> | undefined;
