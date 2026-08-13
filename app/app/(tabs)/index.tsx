@@ -24,7 +24,6 @@ export default function Home() {
   const toggleHidden = () => {
     smooth();
     setSettings({ hideNw: !hiddenRef.current });
-    showToast(hiddenRef.current ? 'Net worth visible' : 'Net worth hidden — flip the phone or tap the eye to reveal');
   };
   useEffect(() => {
     Accelerometer.setUpdateInterval(250);
