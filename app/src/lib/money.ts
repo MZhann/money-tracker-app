@@ -16,17 +16,24 @@ export const SYM: Record<Currency, string> = { KZT: '₸', USD: '$', EUR: '€',
 export const FX: Record<Currency, number> = { KZT: 1, USD: 540, EUR: 585, RUB: 6.7, GBP: 680, CNY: 75, JPY: 3.6, TRY: 13, AED: 147 };
 export const TYPE_LABELS: Record<AccountType, string> = { debit: 'Debit', credit: 'Credit', cash: 'Cash', savings: 'Savings' };
 
-export interface Settings { name: string; baseCurrency: Currency; theme: import('../theme/tokens').ThemeId; }
+export interface Settings {
+  name: string; baseCurrency: Currency; theme: import('../theme/tokens').ThemeId;
+  defaultAccountId?: string;      // preselected account in the add-transaction sheet
+  catShown?: number;              // categories visible before "Show all" (999 = all)
+  hideNw?: boolean;               // mask net worth on the home hero (eye toggle / phone flip)
+  chartKind?: 'bars' | 'pie';     // which chart the Charts tab opens on
+}
 // Credit accounts: balance is negative = what you owe; `limits` is the credit line
 // per currency, display-only — available credit is never counted in net worth.
 export interface Account { id: string; name: string; type: AccountType; balances: Partial<Record<Currency, number>>; limits?: Partial<Record<Currency, number>>; order?: number; }
-export interface Category { id: string; name: string; kind: 'expense' | 'income'; icon: string; color: CatColor; }
+export interface Category { id: string; name: string; kind: 'expense' | 'income'; icon: string; color: CatColor; order?: number; }
 export interface Tx {
   id: string; type: TxType; amount: number; currency: Currency;
   accountId: string; toId?: string | null; categoryId?: string | null;
   note: string; date: string; // YYYY-MM-DD
 }
-export interface Debt { id: string; person: string; dir: 'lent' | 'borrowed'; amount: number; currency: Currency; }
+// One record per lend/borrow event; records group by `person` in the UI. `date` is optional for pre-existing records.
+export interface Debt { id: string; person: string; dir: 'lent' | 'borrowed'; amount: number; currency: Currency; date?: string; note?: string; }
 // Physical property counted in net worth (PS5, phone, home…). Value = what it would sell for today.
 export interface Asset { id: string; name: string; value: number; currency: Currency; }
 

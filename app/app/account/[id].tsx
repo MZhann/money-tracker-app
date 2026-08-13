@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AmountText, Card, CategoryIcon, Icon } from '@/components/ui';
 import { Currency, TYPE_LABELS, Tx, addMonths, dateLabel, fmt, fromKZT, monthKey, toKZT } from '@/lib/money';
@@ -19,7 +19,7 @@ export default function AccountDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { settings, accounts, categories, transactions, deleteTx, showToast } = useFlow();
+  const { settings, accounts, categories, transactions } = useFlow();
   const base = settings.baseCurrency;
   const account = accounts.find(a => a.id === id);
 
@@ -84,11 +84,8 @@ export default function AccountDetail() {
   const tot = entries.reduce((s, [c, v]) => s + toKZT(v, c), 0);
   const cat = (cid?: string | null) => categories.find(c => c.id === cid);
 
-  const confirmDelete = (tx: Tx) =>
-    Alert.alert('Delete transaction?', 'Balances will be adjusted back.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => { deleteTx(tx.id); showToast('Transaction removed'); } },
-    ]);
+  // Long-press opens the full editor; deleting lives there now.
+  const openEdit = (tx: Tx) => router.push({ pathname: '/sheets/add-transaction', params: { id: tx.id } });
 
   return (
     <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: space(5), paddingBottom: 32, gap: space(3) }}>
@@ -186,7 +183,7 @@ export default function AccountDetail() {
                 ? (incoming ? `From ${accounts.find(a => a.id === tx.accountId)?.name ?? '?'}` : `To ${accounts.find(a => a.id === tx.toId)?.name ?? '?'}`)
                 : c?.name ?? 'Other';
               return (
-                <Pressable key={tx.id} onLongPress={() => confirmDelete(tx)} style={{
+                <Pressable key={tx.id} delayLongPress={250} onLongPress={() => openEdit(tx)} style={{
                   flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11,
                   borderBottomWidth: i < g.rows.length - 1 ? 1 : 0, borderBottomColor: t.borderSoft,
                 }}>

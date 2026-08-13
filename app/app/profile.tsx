@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CapsLabel, Card, CategoryIcon, Chip, CurrencyPicker, Icon, catTint } from '@/components/ui';
+import { CapsLabel, Card, CategoryIcon, Chip, CurrencyPicker, Icon, Select, catTint } from '@/components/ui';
 import { exportMarkdown } from '@/export/markdown';
 import { CAT_COLORS, CatColor } from '@/lib/money';
 import { useFlow } from '@/store/useFlow';
@@ -189,6 +189,29 @@ export default function Profile() {
         <Text style={{ fontFamily: font.body, fontSize: 11, color: t.textFaint }}>Totals and charts are shown in this currency.</Text>
       </Card>
 
+      <Card style={{ padding: 16, gap: 10 }}>
+        <Text style={{ fontFamily: font.display, fontSize: 16, color: t.textBody }}>Quick add defaults</Text>
+        <CapsLabel>Default account</CapsLabel>
+        {accounts.length === 0 ? (
+          <Text style={{ fontFamily: font.body, fontSize: 12.5, color: t.textFaint }}>Add an account first to pick a default.</Text>
+        ) : (
+          <Select
+            value={accounts.some(a => a.id === settings.defaultAccountId) ? settings.defaultAccountId! : accounts[0].id}
+            options={accounts.map(a => ({ value: a.id, label: a.name }))}
+            onChange={id => { setSettings({ defaultAccountId: id }); showToast('Default account set'); }}
+          />
+        )}
+        <CapsLabel>Categories shown before “Show all”</CapsLabel>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {[{ v: 3, l: '3' }, { v: 7, l: '7' }, { v: 11, l: '11' }, { v: 999, l: 'All' }].map(o => (
+            <Chip key={o.v} label={o.l} selected={(settings.catShown ?? 7) === o.v} onPress={() => setSettings({ catShown: o.v })} />
+          ))}
+        </View>
+        <Text style={{ fontFamily: font.body, fontSize: 11, color: t.textFaint }}>
+          Applies to the category grid in the add-transaction form.
+        </Text>
+      </Card>
+
       <Card style={{ padding: 16, gap: 12 }}>
         <Text style={{ fontFamily: font.display, fontSize: 16, color: t.textBody }}>Theme</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -215,6 +238,9 @@ export default function Profile() {
         </Pressable>
         {catsOpen && (
           <View style={{ gap: 12 }}>
+            <Text style={{ fontFamily: font.body, fontSize: 11.5, color: t.textFaint }}>
+              To rearrange categories, hold and drag them in the add-transaction form.
+            </Text>
             <CapsLabel>Expenses</CapsLabel>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{chipList('expense')}</View>
             <CapsLabel>Income</CapsLabel>

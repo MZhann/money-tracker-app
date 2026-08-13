@@ -31,8 +31,11 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="account/[id]" options={{ animation: 'slide_from_right' }} />
-        {/* Full modal card (not formSheet): its flex layout pins the save button to the bottom. */}
-        <Stack.Screen name="sheets/add-transaction" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="debt/[person]" options={{ animation: 'slide_from_right' }} />
+        {/* fullScreenModal, not pageSheet: the iOS sheet tracks every vertical drag
+            (even with gestureEnabled false it rubber-bands), which killed category
+            reordering. Full screen has no dismiss recognizer — the X button closes. */}
+        <Stack.Screen name="sheets/add-transaction" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="sheets/edit-account" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="sheets/add-debt" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="sheets/edit-asset" options={{ presentation: 'formSheet', sheetGrabberVisible: true, animation: 'slide_from_bottom' }} />

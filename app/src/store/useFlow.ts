@@ -19,12 +19,14 @@ interface FlowState {
   showToast: (m: string) => void;
   setSettings: (patch: Partial<Settings>) => void;
   addTx: (tx: Omit<Tx, 'id'>) => void;
+  updateTx: (tx: Tx) => void;
   deleteTx: (id: string) => void;
   saveAccount: (acc: Account) => void;
   deleteAccount: (id: string) => void;
-  moveAccount: (id: string, dir: -1 | 1) => void;
+  reorderAccounts: (from: number, to: number) => void;
   addCategory: (c: Omit<Category, 'id'>) => void;
   deleteCategory: (id: string) => void;
+  reorderCategories: (kind: 'expense' | 'income', from: number, to: number) => void;
   addDebt: (d: Omit<Debt, 'id'>) => void;
   settleDebt: (id: string) => void;
   saveAsset: (a: Asset) => void;
@@ -63,7 +65,7 @@ export const useFlow = create<FlowState>((set, get) => ({
       ready: true,
       settings: loadAll<Settings>('settings')[0] ?? defaultSettings,
       accounts: loadAll<Account>('accounts').sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-      categories: loadAll<Category>('categories'),
+      categories: loadAll<Category>('categories').sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
       transactions: loadAll<Tx>('transactions'),
       debts: loadAll<Debt>('debts'),
       assets: loadAll<Asset>('assets'),
@@ -89,7 +91,8 @@ export const useFlow = create<FlowState>((set, get) => ({
     const settings = { ...get().settings, ...patch };
     upsert('settings', 'settings', settings);
     set({ settings });
-    requestSync();
+    // No requestSync: preference tweaks (shown-count, theme, name…) apply locally for
+    // the session; the dirty row uploads on the next app-open/foreground/reconnect sync.
   },
 
   addTx: (input) => {
@@ -104,6 +107,29 @@ export const useFlow = create<FlowState>((set, get) => ({
     upsert('transactions', tx.id, tx);
     for (const a of accounts) upsert('accounts', a.id, a);
     set({ transactions: [...get().transactions, tx], accounts });
+    requestSync();
+  },
+
+  updateTx: (tx) => {
+    const prev = get().transactions.find(x => x.id === tx.id);
+    if (!prev) return;
+    let accounts = get().accounts;
+    // Undo the old transaction's balance effect, then apply the edited one.
+    if (prev.type === 'expense') accounts = applyBalance(accounts, prev.accountId, prev.currency, prev.amount);
+    if (prev.type === 'income') accounts = applyBalance(accounts, prev.accountId, prev.currency, -prev.amount);
+    if (prev.type === 'transfer' && prev.toId) {
+      accounts = applyBalance(accounts, prev.accountId, prev.currency, prev.amount);
+      accounts = applyBalance(accounts, prev.toId, prev.currency, -prev.amount);
+    }
+    if (tx.type === 'expense') accounts = applyBalance(accounts, tx.accountId, tx.currency, -tx.amount);
+    if (tx.type === 'income') accounts = applyBalance(accounts, tx.accountId, tx.currency, tx.amount);
+    if (tx.type === 'transfer' && tx.toId) {
+      accounts = applyBalance(accounts, tx.accountId, tx.currency, -tx.amount);
+      accounts = applyBalance(accounts, tx.toId, tx.currency, tx.amount);
+    }
+    upsert('transactions', tx.id, tx);
+    for (const a of accounts) upsert('accounts', a.id, a);
+    set({ transactions: get().transactions.map(x => x.id === tx.id ? tx : x), accounts });
     requestSync();
   },
 
@@ -138,23 +164,40 @@ export const useFlow = create<FlowState>((set, get) => ({
     requestSync();
   },
 
-  moveAccount: (id, dir) => {
+  reorderAccounts: (from, to) => {
     const list = [...get().accounts];
-    const i = list.findIndex(a => a.id === id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]];
+    if (from < 0 || from >= list.length || to < 0 || to >= list.length || from === to) return;
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
     const reindexed = list.map((a, idx) => ({ ...a, order: idx }));
     for (const a of reindexed) upsert('accounts', a.id, a);
     set({ accounts: reindexed });
-    requestSync();
+    // No requestSync: rows are dirty in SQLite; the app-open/foreground sync uploads
+    // the new order in the background instead of racing an in-progress drag session.
   },
 
   addCategory: (c) => {
-    const cat: Category = { ...c, id: uuid() };
+    const cat: Category = { ...c, id: uuid(), order: get().categories.length };
     upsert('categories', cat.id, cat);
     set({ categories: [...get().categories, cat] });
     requestSync();
+  },
+
+  // from/to are indices within the kind-filtered list (what the picker shows);
+  // items of the other kind keep their global slots.
+  reorderCategories: (kind, from, to) => {
+    const list = [...get().categories];
+    const idxs = list.map((c, i) => (c.kind === kind ? i : -1)).filter(i => i >= 0);
+    if (from < 0 || from >= idxs.length || to < 0 || to >= idxs.length || from === to) return;
+    const sub = idxs.map(i => list[i]);
+    const [moved] = sub.splice(from, 1);
+    sub.splice(to, 0, moved);
+    idxs.forEach((gi, k) => { list[gi] = sub[k]; });
+    const reindexed = list.map((c, idx) => ({ ...c, order: idx }));
+    for (const c of reindexed) upsert('categories', c.id, c);
+    set({ categories: reindexed });
+    // No requestSync: rows are dirty in SQLite; the app-open/foreground sync uploads
+    // the new order in the background instead of racing an in-progress drag session.
   },
 
   deleteCategory: (id) => {
@@ -214,17 +257,19 @@ export const useFlow = create<FlowState>((set, get) => ({
 
 // ---- derived selectors (pure) ----
 export function netWorthKZT(accounts: Account[], debts: Debt[], property: Asset[] = []) {
-  let assets = 0, liab = 0, prop = 0;
+  let cash = 0, credit = 0, lent = 0, borrowed = 0, prop = 0;
   for (const a of accounts) for (const [c, v] of Object.entries(a.balances)) {
     const k = toKZT(v as number, c as Currency);
-    if (k >= 0) assets += k; else liab += -k;
+    if (k >= 0) cash += k; else credit += -k;
   }
   for (const d of debts) {
     const k = toKZT(d.amount, d.currency);
-    if (d.dir === 'lent') assets += k; else liab += k;
+    if (d.dir === 'lent') lent += k; else borrowed += k;
   }
   for (const p of property) prop += toKZT(p.value, p.currency);
-  return { assets: assets + prop, prop, liab, net: assets + prop - liab };
+  const liab = credit + borrowed;
+  const assets = cash + lent + prop;
+  return { assets, prop, liab, net: assets - liab, cash, credit, lent, borrowed };
 }
 
 export function monthFlowKZT(transactions: Tx[], key: string) {

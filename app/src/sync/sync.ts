@@ -57,11 +57,20 @@ export function signOut() {
   setMeta('lastPulledAt', '0'); // a future login re-pulls the full account state
 }
 
-/** Fire-and-forget: call after any local write. No-op when offline, unconfigured, or signed out. */
+/**
+ * Fire-and-forget: call after any local write. No-op when offline, unconfigured, or signed out.
+ * Debounced: rapid writes (typing a name, dragging categories) collapse into one
+ * sync that fires after the burst goes quiet, instead of one request per keystroke.
+ */
+const SYNC_DEBOUNCE_MS = 1500;
+let syncTimer: ReturnType<typeof setTimeout> | undefined;
 export function requestSync() {
   if (!API) return;
-  if (inFlight) { pending = true; return; }
-  void run();
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    if (inFlight) { pending = true; return; }
+    void run();
+  }, SYNC_DEBOUNCE_MS);
 }
 
 /** Explicit user-triggered sync ("Sync now") — resolves with the outcome so the UI can report it. */
